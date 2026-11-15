@@ -76,3 +76,66 @@ class TokenManager:
     def expires_at(self) -> datetime | None:
         with self._lock:
             return self._token.expires_at if self._token else None
+
+
+class SharedTokenManager(TokenManager):
+    """Encrypt the Upstox token in shared PostgreSQL for the isolated worker."""
+
+    provider = "upstox"
+
+    def _cipher(self):
+        from config.settings import get_settings
+        key = get_settings().upstox_token_encryption_key.get_secret_value()
+        if not key:
+            return None
+        from cryptography.fernet import Fernet
+        return Fernet(key.encode("ascii"))
+
+    def _restore(self) -> None:
+        cipher = self._cipher()
+        if cipher is None:
+            return
+        from database.connection import SessionLocal
+        from database.models import IntegrationCredentials
+        try:
+            with SessionLocal() as session:
+                record = session.get(IntegrationCredentials, self.provider)
+                if record:
+                    value = cipher.decrypt(record.encrypted_token.encode("ascii")).decode("utf-8")
+                    super().set_token(value, issued_at=record.issued_at, expires_at=record.expires_at)
+        except Exception as exc:
+            raise TokenExpiredError("Stored Upstox authorization is unavailable; authorize again") from exc
+
+    def set_token(self, value: str, *, issued_at: datetime | None = None,
+                  expires_at: datetime | None = None) -> AccessToken:
+        token = super().set_token(value, issued_at=issued_at, expires_at=expires_at)
+        cipher = self._cipher()
+        if cipher is not None:
+            from database.connection import SessionLocal
+            from database.models import IntegrationCredentials
+            with SessionLocal() as session:
+                record = session.get(IntegrationCredentials, self.provider)
+                if record is None:
+                    record = IntegrationCredentials(provider=self.provider,
+                        encrypted_token=cipher.encrypt(token.value.encode("utf-8")).decode("ascii"),
+                        issued_at=token.issued_at, expires_at=token.expires_at)
+                    session.add(record)
+                else:
+                    record.encrypted_token = cipher.encrypt(token.value.encode("utf-8")).decode("ascii")
+                    record.issued_at, record.expires_at = token.issued_at, token.expires_at
+                session.commit()
+        return token
+
+    def get_token(self, *, now: datetime | None = None) -> str:
+        if self._token is None:
+            self._restore()
+        return super().get_token(now=now)
+
+    @property
+    def expires_at(self) -> datetime | None:
+        if self._token is None:
+            try:
+                self._restore()
+            except TokenExpiredError:
+                return None
+        return super().expires_at

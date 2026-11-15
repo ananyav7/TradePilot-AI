@@ -350,3 +350,22 @@ def _audit_paper_order_status_changes(session: Session, _: object, __: object) -
             new_status=current,
         ))
 
+
+
+class IntegrationCredentials(Base):
+    """Encrypted credentials shared only by backend and worker processes."""
+    __tablename__ = "integration_credentials"
+    provider: Mapped[str] = mapped_column(String(40), primary_key=True)
+    encrypted_token: Mapped[str] = mapped_column(Text, nullable=False)
+    issued_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now,
+                                                  onupdate=utc_now, nullable=False)
+
+
+class SchedulerWorkerHeartbeat(Base):
+    """Latest health marker for the dedicated external scheduler process."""
+    __tablename__ = "scheduler_worker_heartbeat"
+    worker_id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    last_seen: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)

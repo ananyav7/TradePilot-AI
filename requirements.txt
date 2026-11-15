@@ -20,3 +20,7 @@ requests>=2.32,<3.0
 openai>=1.68,<3.0
 python-telegram-bot>=21.0,<23.0
 
+
+# PostgreSQL production database
+psycopg[binary]>=3.2,<4.0
+cryptography>=42,<47

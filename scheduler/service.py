@@ -10,7 +10,7 @@ from sqlalchemy import select
 
 from config.settings import get_settings
 from database.connection import SessionLocal
-from database.models import NSECalendarException, SchedulerRuns
+from database.models import NSECalendarException, SchedulerRuns, SchedulerWorkerHeartbeat
 from scheduler.calendar import INDIA_TZ, NSETradingCalendar, seed_official_2026_calendar
 from scheduler.workflow import DAILY_TIMES, DailyWorkflow, dispatch_job
 
@@ -174,6 +174,34 @@ class DailyAutomationScheduler:
 def scheduler_status() -> dict:
     """Return current backend scheduler process state, if one was started."""
     if _active_service is None:
-        return {"enabled": False, "running": False, "state": "not_started",
-                "timezone": INDIA_TZ.key, "jobs": [], "recent_runs": [], "calendar": {}}
+        mode = get_settings().scheduler_mode
+        response = {"enabled": mode != "disabled", "running": None,
+                    "state": "external_worker" if mode == "external" else "not_started",
+                    "worker_mode": mode, "timezone": INDIA_TZ.key,
+                    "jobs": [], "recent_runs": [], "calendar": {}}
+        if mode == "external":
+            # Durable history is useful across the separate API/worker processes.
+            try:
+                with SessionLocal() as session:
+                    now = datetime.now(timezone.utc)
+                    recent = list(session.scalars(select(SchedulerRuns).order_by(
+                        SchedulerRuns.started_at.desc()).limit(20)))
+                    response["recent_runs"] = [{"job_name": row.job_name,
+                        "market_date": row.market_date.isoformat(), "scheduled_for": row.scheduled_for.isoformat(),
+                        "status": row.status, "attempts": row.attempts,
+                        "started_at": row.started_at.isoformat(),
+                        "finished_at": row.finished_at.isoformat() if row.finished_at else None,
+                        "details": row.details_json, "error_type": row.error_type} for row in recent]
+                    heartbeat = session.get(SchedulerWorkerHeartbeat, "render-market-worker")
+                    last_seen = heartbeat.last_seen if heartbeat else None
+                    if last_seen and last_seen.tzinfo is None:
+                        last_seen = last_seen.replace(tzinfo=timezone.utc)
+                    worker_alive = bool(heartbeat and heartbeat.status == "running" and last_seen and
+                                        (now - last_seen.astimezone(timezone.utc)).total_seconds() <= 75)
+                    response["running"] = worker_alive
+                    response["state"] = "running" if worker_alive else "stopped"
+                    response["worker_last_seen"] = last_seen.isoformat() if last_seen else None
+            except Exception as exc:
+                logger.warning("Unable to read external worker history (%s)", type(exc).__name__)
+        return response
     return _active_service.status()

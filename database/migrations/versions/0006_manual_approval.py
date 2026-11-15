@@ -10,15 +10,22 @@ depends_on = None
 
 
 def upgrade() -> None:
+    existing = {column["name"] for column in sa.inspect(op.get_bind()).get_columns("approvals")}
     with op.batch_alter_table("approvals") as batch:
-        batch.add_column(sa.Column("signal_version", sa.String(160), nullable=True))
-        batch.add_column(sa.Column("approved_quantity", sa.Integer(), nullable=True))
-        batch.add_column(sa.Column("decision_entry_price", sa.Numeric(16, 4), nullable=True))
-        batch.add_column(sa.Column("decision_stop_loss", sa.Numeric(16, 4), nullable=True))
-        batch.add_column(sa.Column("decision_target_price", sa.Numeric(16, 4), nullable=True))
-        batch.add_column(sa.Column("risk_amount", sa.Numeric(16, 4), nullable=True))
-        batch.add_column(sa.Column("estimated_charges", sa.Numeric(16, 4), nullable=True))
-
+        if "signal_version" not in existing:
+            batch.add_column(sa.Column("signal_version", sa.String(160), nullable=True))
+        if "approved_quantity" not in existing:
+            batch.add_column(sa.Column("approved_quantity", sa.Integer(), nullable=True))
+        if "decision_entry_price" not in existing:
+            batch.add_column(sa.Column("decision_entry_price", sa.Numeric(16, 4), nullable=True))
+        if "decision_stop_loss" not in existing:
+            batch.add_column(sa.Column("decision_stop_loss", sa.Numeric(16, 4), nullable=True))
+        if "decision_target_price" not in existing:
+            batch.add_column(sa.Column("decision_target_price", sa.Numeric(16, 4), nullable=True))
+        if "risk_amount" not in existing:
+            batch.add_column(sa.Column("risk_amount", sa.Numeric(16, 4), nullable=True))
+        if "estimated_charges" not in existing:
+            batch.add_column(sa.Column("estimated_charges", sa.Numeric(16, 4), nullable=True))
 
 def downgrade() -> None:
     with op.batch_alter_table("approvals") as batch:

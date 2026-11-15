@@ -59,10 +59,8 @@ def render_shell() -> None:
         '<span class="tp-chip">PAPER EXECUTION</span> &nbsp; <span class="tp-chip tp-chip-warn">LIVE ORDERS OFF</span></div></div>',
         unsafe_allow_html=True,
     )
-    st.sidebar.caption(f"{settings.app_name} · Local workspace")
-    st.sidebar.markdown("<span class='tp-muted'>Research terminal · local data</span>", unsafe_allow_html=True)
+    st.sidebar.caption(settings.app_name)
     st.sidebar.divider()
-    st.sidebar.caption("Market-data provenance is shown on each page.")
     st.sidebar.caption("Paper only · no broker orders")
     with st.sidebar.expander("Financial terms", expanded=False):
         st.caption("**Invested capital** · open positions valued at average fill cost.")

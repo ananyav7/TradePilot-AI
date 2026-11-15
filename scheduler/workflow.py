@@ -15,6 +15,7 @@ from typing import Any
 import pandas as pd
 from sqlalchemy import select, update
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -271,7 +272,8 @@ class DailyWorkflow:
                         "updated_at": snapshot.retrieved_at,
                     })
                 with transaction(session):
-                    session.execute(sqlite_insert(MarketData).values(rows).on_conflict_do_nothing(
+                    insert_for_db = postgres_insert if session.get_bind().dialect.name == "postgresql" else sqlite_insert
+                    session.execute(insert_for_db(MarketData).values(rows).on_conflict_do_nothing(
                         index_elements=["stock_id", "interval", "candle_at"]))
                 saved += 1
             except Exception as exc:
@@ -498,7 +500,8 @@ class DailyWorkflow:
     def _acquire_pipeline_lease(self, session: Session, now: datetime) -> bool:
         expires = now + timedelta(hours=4)
         with transaction(session):
-            session.execute(sqlite_insert(SchedulerLeases).values(
+            insert_for_db = postgres_insert if session.get_bind().dialect.name == "postgresql" else sqlite_insert
+            session.execute(insert_for_db(SchedulerLeases).values(
                 resource="market_pipeline", owner_id=self.owner_id,
                 acquired_at=now, lease_until=expires).on_conflict_do_nothing(
                     index_elements=["resource"]))

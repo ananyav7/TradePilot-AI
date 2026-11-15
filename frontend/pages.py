@@ -8,12 +8,11 @@ from zoneinfo import ZoneInfo
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-import requests
 import streamlit as st
 from plotly.subplots import make_subplots
 from sqlalchemy import select
-from database.models import (Approvals, MarketData, NSECalendarYear, NotificationLogs,
-                             PaperOrders, Positions, SchedulerRuns, Stock,
+from database.models import (Approvals, MarketData, NotificationLogs,
+                             PaperOrders, Positions, Stock,
                              TradeSignals)
 from execution.paper_engine import DailyMarketBar, ExecutionQuote, PaperExecutionError, PaperTradingEngine
 from execution.approval_manager import ApprovalManager
@@ -26,6 +25,7 @@ from reports.service import ReportingService, format_inr
 from config.settings import get_settings
 from database.connection import SessionLocal
 from frontend.components import metric_cards, page_header, render_source_badge
+from frontend.api_client import ApiUnavailable, api_request
 from frontend.services import TradingViewService
 from integrations.upstox.instrument_master import InstrumentMasterClient
 from market_data.universe import NIFTY50_SOURCE_PAGE, StockUniverseService
@@ -116,23 +116,12 @@ def render_dashboard() -> None:
 
 def _render_scheduler_status() -> None:
     st.markdown("### Daily scheduler status")
-    settings = get_settings()
-    api_root = f"http://{settings.api_host}:{settings.api_port}"
     payload = None
     try:
-        response = requests.get(f"{api_root}/scheduler/status", timeout=2)
-        response.raise_for_status()
-        payload = response.json()
-    except requests.RequestException:
-        st.warning("Scheduler status is unavailable because the FastAPI scheduler service is not reachable. Manual research and paper controls remain available.")
-        with SessionLocal() as session:
-            metadata = session.get(NSECalendarYear, datetime.now(timezone.utc).astimezone(
-                ZoneInfo("Asia/Kolkata")).year)
-            last_run = session.scalar(select(SchedulerRuns).order_by(SchedulerRuns.started_at.desc()).limit(1))
-            if metadata:
-                st.caption(f"Last persisted NSE calendar: {metadata.source_name} · refreshed UTC {metadata.refreshed_at.isoformat()} · {metadata.source_url}")
-            if last_run:
-                st.caption(f"Last persisted run: {last_run.job_name} · {last_run.status} · {last_run.started_at.isoformat()} UTC")
+        with st.spinner("Checking scheduler status…"):
+            payload = api_request("GET", "/scheduler/status", timeout=5).json()
+    except ApiUnavailable as exc:
+        st.warning(f"Scheduler status unavailable: {exc}")
 
     if payload is not None:
         calendar = payload.get("calendar", {})
@@ -301,18 +290,13 @@ def render_scanner() -> None:
             st.info("Load the official list or import a CSV to begin managing the universe.")
 
         if st.button("Run daily scanner", type="primary", disabled=not any(s.active and s.instrument_available for s in stocks)):
-            api_root = f"http://{get_settings().api_host}:{get_settings().api_port}"
             try:
                 with st.spinner("Retrieving completed daily candles and scanning eligible constituents…"):
-                    response = requests.get(f"{api_root}/universe/scanner", timeout=300)
-                if response.status_code == 401:
-                    st.warning("Authorize Upstox first from the backend's /auth/upstox/login route.")
-                else:
-                    response.raise_for_status()
-                    st.session_state["nifty_scan_results"] = response.json()["results"]
-                    st.session_state["nifty_scan_source"] = response.json()["source"]
-            except requests.RequestException as exc:
-                st.error(f"Scanner API unavailable ({type(exc).__name__}). Start the FastAPI backend and authorize Upstox.")
+                    result = api_request("GET", "/universe/scanner", timeout=300).json()
+                st.session_state["nifty_scan_results"] = result["results"]
+                st.session_state["nifty_scan_source"] = result["source"]
+            except ApiUnavailable as exc:
+                st.error(f"Scanner service unavailable: {exc}. Complete Upstox authorization if needed.")
 
     raw_results = st.session_state.get("nifty_scan_results")
     if raw_results:

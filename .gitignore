@@ -32,3 +32,6 @@ data/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Streamlit local and deployed secret file
+.streamlit/secrets.toml

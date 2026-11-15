@@ -3,8 +3,9 @@
 from functools import lru_cache
 from pathlib import Path
 from decimal import Decimal
+from typing import Literal
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,15 +17,20 @@ class Settings(BaseSettings):
 
     app_name: str = "TradePilot AI"
     app_env: str = "development"
+    app_role: Literal["local", "api", "worker", "frontend"] = "local"
     log_level: str = "INFO"
     database_url: str = Field(default="sqlite:///./data/tradepilot.db")
-    api_host: str = "127.0.0.1"
-    api_port: int = 8000
+    api_base_url: str = "http://127.0.0.1:8000"
+    api_auth_token: SecretStr = Field(default=SecretStr(""), repr=False)
+    app_access_password: SecretStr = Field(default=SecretStr(""), repr=False)
+    api_request_timeout_seconds: float = Field(default=10.0, gt=0, le=120)
+    scheduler_mode: Literal["embedded", "external", "disabled"] = "embedded"
     paper_trading_enabled: bool = True
     live_trading_enabled: bool = False
     upstox_client_id: SecretStr = Field(default=SecretStr(""), repr=False)
     upstox_client_secret: SecretStr = Field(default=SecretStr(""), repr=False)
-    upstox_redirect_uri: str = "http://localhost:8000/auth/callback"
+    upstox_token_encryption_key: SecretStr = Field(default=SecretStr(""), repr=False)
+    upstox_redirect_uri: str = "http://127.0.0.1:8000/auth/callback"
     upstox_api_timeout_seconds: float = Field(default=10.0, gt=0, le=120)
     upstox_max_read_retries: int = Field(default=3, ge=1, le=5)
     upstox_instrument_cache_path: Path = PROJECT_ROOT / "data" / "cache" / "upstox_nse.json.gz"
@@ -58,6 +64,23 @@ class Settings(BaseSettings):
     paper_max_quote_age_seconds: int = Field(default=30, ge=1)
     daily_scheduler_enabled: bool = True
     scheduler_monitor_interval_minutes: int = Field(default=5, ge=1, le=60)
+
+    @model_validator(mode="after")
+    def validate_production_settings(self) -> "Settings":
+        if self.app_env.lower() in {"production", "prod"}:
+            if not self.database_url.startswith(("postgresql://", "postgres://", "postgresql+psycopg://")):
+                raise ValueError("Production requires a PostgreSQL DATABASE_URL; SQLite is local-only")
+            if self.app_role == "api" and len(self.api_auth_token.get_secret_value()) < 32:
+                raise ValueError("API_AUTH_TOKEN must contain at least 32 characters for the API service")
+            if self.app_role in {"api", "worker"}:
+                try:
+                    from cryptography.fernet import Fernet
+                    Fernet(self.upstox_token_encryption_key.get_secret_value().encode("ascii"))
+                except Exception as exc:
+                    raise ValueError("API and worker require a valid UPSTOX_TOKEN_ENCRYPTION_KEY") from exc
+            if self.app_role == "frontend" and len(self.app_access_password.get_secret_value()) < 16:
+                raise ValueError("APP_ACCESS_PASSWORD must contain at least 16 characters for the frontend")
+        return self
 
     @field_validator("live_trading_enabled")
     @classmethod

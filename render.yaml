@@ -1,0 +1,65 @@
+services:
+  - type: web
+    name: tradepilot-api
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    preDeployCommand: python -m database.init_db
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_ROLE
+        value: api
+      - key: DATABASE_URL
+        sync: false
+      - key: API_AUTH_TOKEN
+        generateValue: true
+      - key: SCHEDULER_MODE
+        value: external
+      - key: LIVE_TRADING_ENABLED
+        value: "false"
+      - key: UPSTOX_CLIENT_ID
+        sync: false
+      - key: UPSTOX_CLIENT_SECRET
+        sync: false
+      - key: UPSTOX_TOKEN_ENCRYPTION_KEY
+        sync: false
+      - key: UPSTOX_REDIRECT_URI
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+      - key: LOG_LEVEL
+        value: INFO
+  - type: worker
+    name: tradepilot-market-worker
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m scheduler.worker
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_ROLE
+        value: worker
+      - key: DATABASE_URL
+        sync: false
+      - key: SCHEDULER_MODE
+        value: external
+      - key: LIVE_TRADING_ENABLED
+        value: "false"
+      - key: UPSTOX_CLIENT_ID
+        sync: false
+      - key: UPSTOX_CLIENT_SECRET
+        sync: false
+      - key: UPSTOX_TOKEN_ENCRYPTION_KEY
+        sync: false
+      - key: UPSTOX_REDIRECT_URI
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+      - key: LOG_LEVEL
+        value: INFO

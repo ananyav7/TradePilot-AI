@@ -10,9 +10,6 @@ depends_on = None
 
 
 def upgrade() -> None:
-    existing = set(sa.inspect(op.get_bind()).get_table_names())
-    if "scheduler_runs" in existing:
-        return
     op.create_table(
         "nse_calendar_years",
         sa.Column("year", sa.Integer(), primary_key=True),

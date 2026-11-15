@@ -10,8 +10,6 @@ depends_on = None
 
 
 def upgrade() -> None:
-    if "scheduler_leases" in sa.inspect(op.get_bind()).get_table_names():
-        return
     op.create_table(
         "scheduler_leases",
         sa.Column("resource", sa.String(length=80), primary_key=True),

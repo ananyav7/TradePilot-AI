@@ -3,7 +3,7 @@
 from collections.abc import Generator, Iterator
 from contextlib import contextmanager
 
-from sqlalchemy import create_engine, event, text
+from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -19,17 +19,6 @@ def _build_engine(database_url: str) -> Engine:
     """Build a SQLAlchemy engine with SQLite and Windows-safe paths."""
     connect_args: dict[str, object] = {}
     engine_options: dict[str, object] = {"pool_pre_ping": True}
-    if database_url.startswith(("postgres://", "postgresql://")):
-        database_url = database_url.replace("postgres://", "postgresql+psycopg://", 1) if database_url.startswith("postgres://") else database_url.replace("postgresql://", "postgresql+psycopg://", 1)
-    if database_url.startswith("postgresql+"):
-        from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
-        parts = urlsplit(database_url)
-        query = dict(parse_qsl(parts.query, keep_blank_values=True))
-        if parts.hostname not in {"localhost", "127.0.0.1"}:
-            query.setdefault("sslmode", "require")
-        database_url = urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
-        engine_options.update(pool_size=5, max_overflow=5, pool_timeout=30, pool_recycle=1800)
-        connect_args.update(connect_timeout=10, prepare_threshold=None)
     if database_url.startswith("sqlite"):
         connect_args["check_same_thread"] = False
         if database_url in {"sqlite://", "sqlite:///:memory:"}:
@@ -78,13 +67,3 @@ def transaction(session: Session) -> Iterator[Session]:
     except Exception:
         session.rollback()
         raise
-
-
-def database_health() -> bool:
-    """Check database connectivity without creating or mutating schema."""
-    try:
-        with engine.connect() as connection:
-            connection.execute(text("SELECT 1"))
-        return True
-    except Exception:
-        return False

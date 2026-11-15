@@ -48,7 +48,7 @@ def test_paper_migration_preserves_existing_trade_history(tmp_path):
     assert result.returncode == 0, result.stdout + result.stderr
 
     connection = sqlite3.connect(database_path)
-    assert connection.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0011_scheduler_worker_heartbeat"
+    assert connection.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0009_scheduler_leases"
     approval_columns = {column[1] for column in connection.execute("PRAGMA table_info(approvals)")}
     assert {"signal_version", "approved_quantity", "risk_amount",
             "market_data_source", "market_data_at"} <= approval_columns

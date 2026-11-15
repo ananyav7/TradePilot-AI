@@ -10,12 +10,10 @@ depends_on = None
 
 
 def upgrade() -> None:
-    existing = {column["name"] for column in sa.inspect(op.get_bind()).get_columns("approvals")}
     with op.batch_alter_table("approvals") as batch:
-        if "market_data_source" not in existing:
-            batch.add_column(sa.Column("market_data_source", sa.String(120), nullable=True))
-        if "market_data_at" not in existing:
-            batch.add_column(sa.Column("market_data_at", sa.DateTime(), nullable=True))
+        batch.add_column(sa.Column("market_data_source", sa.String(120), nullable=True))
+        batch.add_column(sa.Column("market_data_at", sa.DateTime(), nullable=True))
+
 
 def downgrade() -> None:
     with op.batch_alter_table("approvals") as batch:

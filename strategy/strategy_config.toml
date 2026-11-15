@@ -1,0 +1,29 @@
+# Experimental swing strategy parameters. This file is read-only at runtime;
+# edit values here and restart the application to apply changes.
+[strategy]
+name = "EMA-RSI-ATR-Volume Swing"
+version = "swing-v1"
+signal_expiry_calendar_days = 3
+
+[entry]
+rsi_min = 50.0
+rsi_max = 65.0
+relative_volume_min_exclusive = 1.2
+
+[market_filters]
+allowed_trends = ["Bullish"]
+allowed_volatility = ["Low", "Normal", "High"]
+allowed_momentum = ["Neutral"]
+allowed_volume_activity = ["Typical", "Strong"]
+min_atr_percent = 0.0
+max_atr_percent = 10.0
+require_close_above_support = false
+
+[exits]
+stop_atr_multiple = 2.0
+target_atr_multiple = 3.0
+trailing_stop_enabled = true
+trailing_atr_multiple = 2.0
+invalidate_when_ema20_below_ema50 = true
+invalidate_when_close_below_ema20 = true
+invalidate_when_rsi_below = 45.0

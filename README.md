@@ -197,3 +197,5 @@ Paper trading and historical backtesting are local simulations. They do not repr
 - [User guide](docs/USER_GUIDE.md)
 - [System architecture](docs/ARCHITECTURE.md)
 - [Known limitations](docs/KNOWN_LIMITATIONS.md)
+#   T r a d e P i l o t - A I  
+ 
